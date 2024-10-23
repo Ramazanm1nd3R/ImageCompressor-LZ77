@@ -24,19 +24,4 @@ git clone https://your-repository-link-here
 cd lz77-image-encode-decode
 pip install -r requirements.txt
 ```
-Использование
 Программа предлагает два режима работы: сжатие и распаковка изображений.
-
-## Сжатие изображений
-Чтобы сжать изображение:
-
-```
-python script.py compress <path_to_input_image> <path_to_output_file>
-```
-
-## Распаковка изображений
-Чтобы распаковать изображение:
-
-```
-python script.py decompress <path_to_compressed_file> <path_to_output_image>
-```
