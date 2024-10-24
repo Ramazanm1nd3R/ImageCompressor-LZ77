@@ -20,7 +20,7 @@ ImageCompressor-LZ77 - это инструмент для сжатия и рас
 ## Установка
 Чтобы начать работу с ImageCompressor-LZ77, клонируйте репозиторий и установите зависимости:
 ```bash
-git clone https://your-repository-link-here
+git clone https://github.com/Ramazanm1nd3R/ImageCompressor-LZ77
 cd lz77-image-encode-decode
 pip install -r requirements.txt
 ```
