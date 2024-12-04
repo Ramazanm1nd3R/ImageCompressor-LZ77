@@ -1,64 +1,83 @@
 import os
 from PIL import Image
 import numpy as np
+from collections import Counter
 
-# Преобразование изображения в черно-белое
-def to_grayscale(img):
-    return img.convert('L')
+# Класс кодировщика LZ77
+class LZ77Encoder:
+    def __init__(self, window_size=20):
+        self.window_size = window_size
 
-# Шифровка с использованием LZ77
-def lz77_encode(data, window_size=20):
-    dictionary = []
-    buffer = list(map(str, data[:window_size]))
-    encoded = []
-    i = 0
+    def encode(self, data):
+        dictionary = []
+        buffer = list(map(str, data[:self.window_size]))
+        encoded = []
+        i = 0
 
-    while i < len(data):
-        match = None
-        match_length = 0
+        while i < len(data):
+            match = None
+            match_length = 0
 
-        for j in range(max(0, len(dictionary) - window_size), len(dictionary)):
-            l = 0
-            while l < len(buffer) and j + l < len(dictionary) and dictionary[j + l] == buffer[l]:
-                l += 1
-            if l > match_length:
-                match_length = l
-                match = j
+            for j in range(max(0, len(dictionary) - self.window_size), len(dictionary)):
+                l = 0
+                while l < len(buffer) and j + l < len(dictionary) and dictionary[j + l] == buffer[l]:
+                    l += 1
+                if l > match_length:
+                    match_length = l
+                    match = j
 
-        if match is not None and match_length > 0:
-            encoded.append((match, match_length, buffer[match_length] if match_length < len(buffer) else ''))
-            i += match_length + 1
-            dictionary.extend(buffer[:match_length + 1])
-            buffer = list(map(str, data[i:i + window_size]))
-        else:
-            encoded.append((None, None, buffer[0]))
-            i += 1
-            dictionary.append(buffer[0])
-            buffer = list(map(str, data[i:i + window_size]))
+            if match is not None and match_length > 0:
+                encoded.append((match, match_length, buffer[match_length] if match_length < len(buffer) else ''))
+                i += match_length + 1
+                dictionary.extend(buffer[:match_length + 1])
+                buffer = list(map(str, data[i:i + self.window_size]))
+            else:
+                encoded.append((None, None, buffer[0]))
+                i += 1
+                dictionary.append(buffer[0])
+                buffer = list(map(str, data[i:i + self.window_size]))
 
-    return encoded
+        return encoded
 
-# Декодирование данных LZ77
-def lz77_decode(encoded_data):
-    decoded_data = []
 
-    for entry in encoded_data:
-        match_offset, match_length, literal = entry
+# Класс декодировщика LZ77
+class LZ77Decoder:
+    @staticmethod
+    def decode(encoded_data):
+        decoded_data = []
 
-        if match_offset is not None and match_length is not None:
-            for i in range(match_length):
-                decoded_data.append(decoded_data[-match_offset + i])
+        for entry in encoded_data:
+            match_offset, match_length, literal = entry
 
-        if literal:
-            decoded_data.append(literal)
+            if match_offset is not None and match_length is not None:
+                for i in range(match_length):
+                    decoded_data.append(decoded_data[-match_offset + i])
 
-    return decoded_data
+            if literal:
+                decoded_data.append(literal)
+
+        return decoded_data
+
+
+# Функция для преобразования изображения в RGB
+def to_rgb(img):
+    return img.convert('RGB')
+
+
+# Функция для вычисления энтропии
+def calculate_entropy(data):
+    counts = Counter(data)
+    total = len(data)
+    entropy = -sum((count / total) * np.log2(count / total) for count in counts.values())
+    return entropy
+
 
 # Функция для определения размера файла
 def get_file_size(file_path):
     if os.path.exists(file_path):
         return os.path.getsize(file_path)
     return 0
+
 
 # Шифровка изображения
 def encode_image(image_name):
@@ -71,27 +90,40 @@ def encode_image(image_name):
         print("Файл не найден.")
         return
 
-    # Определяем исходный размер файла
     original_size = get_file_size(img_path)
 
-    img = to_grayscale(img)
+    img = to_rgb(img)
     img_data = np.array(img)
     flat_data = img_data.flatten()
-    encoded_data = lz77_encode(flat_data)
 
-    height, width = img_data.shape
+    encoder = LZ77Encoder()
+    encoded_data = encoder.encode(flat_data)
+
+    height, width, channels = img_data.shape
     encoded_file = f"{image_name}-encode.txt"
     with open(encoded_file, 'w') as f:
-        f.write(f"{height},{width}\n")
+        f.write(f"{height},{width},{channels}\n")
         for item in encoded_data:
             f.write(f"{item}\n")
 
-    # Определяем размер файла после шифровки
     encoded_size = get_file_size(encoded_file)
+
+    # Рассчитываем энтропию
+    original_entropy = calculate_entropy(flat_data)
+    encoded_entropy = calculate_entropy([x[2] for x in encoded_data if x[2] is not None])
+
+    # Рассчитываем коэффициенты
+    compression_ratio = original_size / encoded_size
+    redundancy = (1 - (encoded_entropy / original_entropy)) * 100
 
     print(f"Исходный размер изображения: {original_size} байт")
     print(f"Размер зашифрованного файла: {encoded_size} байт")
+    print(f"Исходная энтропия: {original_entropy:.4f}")
+    print(f"Энтропия закодированных данных: {encoded_entropy:.4f}")
+    print(f"Коэффициент сжатия: {compression_ratio:.2f}")
+    print(f"Коэффициент избыточности: {redundancy:.2f}%")
     print(f"Изображение {image_name} успешно зашифровано и сохранено как {encoded_file}.")
+
 
 # Расшифровка изображения
 def decode_image(file_name):
@@ -102,19 +134,21 @@ def decode_image(file_name):
     encoded_data = []
     with open(f'{file_name}', 'r') as f:
         dimensions = f.readline().strip().split(',')
-        height, width = int(dimensions[0]), int(dimensions[1])
+        height, width, channels = map(int, dimensions)
 
         for line in f:
             item = eval(line.strip())
             encoded_data.append(item)
 
-    decoded_data = lz77_decode(encoded_data)
-    decoded_array = np.array(list(map(int, decoded_data))).reshape((height, width))
+    decoder = LZ77Decoder()
+    decoded_data = decoder.decode(encoded_data)
+    decoded_array = np.array(list(map(int, decoded_data))).reshape((height, width, channels))
 
     file_name_split = file_name.split('-')[0]
     decoded_image = Image.fromarray(decoded_array.astype('uint8'))
     decoded_image.save(f'{file_name_split}-decoded_image.jpg')
     print("Декодированное изображение сохранено как decoded_image.jpg.")
+
 
 # Основная функция
 def main():
@@ -133,6 +167,7 @@ def main():
 
     else:
         print("Неверная команда. Пожалуйста, введите 1 или 2.")
+
 
 if __name__ == "__main__":
     main()
