@@ -13,8 +13,8 @@ ImageCompressor-LZ77 - это инструмент для сжатия и рас
 
 ## До сжатия и экспорта сжатого файла после
 <p>
-  <img src="t1.jpg" alt="Light Theme" width="300"/>
-  <img src="t1-decoded_image.jpg" alt="Dark Theme" width="300"/>
+  <img src="tAnime.jpg" alt="Light Theme" width="300"/>
+  <img src="tAnime-decoded_image.jpg" alt="Dark Theme" width="300"/>
 </p>
 
 ## Установка
